@@ -153,6 +153,44 @@ Example payload (commander):
 **clone / ultimate_clone** — need a reference WAV. Local artifacts from the
 old project (not in git): `tests/audio/voxcpm-seg-01-commander.wav` etc.
 
+## Verified end-to-end (2026-09-04)
+
+Endpoint `je4atgp5jliwlp` (`voxcpm2-tts-cached`) passes the full parity
+suite against the old `d6wx79l48172qr` endpoint. All 6 `voice_design`
+voices regenerated with the **same descriptions and spoken text** as the
+old test (text recovered by transcribing the old WAVs with the
+whisper-large-v3-cached endpoint, so the A/B is faithful):
+
+| Voice | Old dur | New dur | Ratio |
+|---|---|---|---|
+| commander | 12.5 s | 14.72 s | 1.18× |
+| young-woman | 9.8 s | 9.92 s | 1.01× |
+| elder-narrator | 12.5 s | 13.6 s | 1.09× |
+| soldier | 11.8 s | 11.52 s | 0.98× |
+| anchor | 10.9 s | 11.68 s | 1.07× |
+| villain | 13.4 s | 13.76 s | 1.03× |
+
+Durations within ±10–18% of the old endpoint — expected variance
+(recovered texts carry whisper's dash punctuation; generation is
+non-deterministic). 0 failed jobs across both endpoints. Voice quality
+confirmed by ear (user: "it sounds pretty good"). Basic `tts` mode also
+verified (4.32 s commander line).
+
+New WAVs at commit time live in `/tmp/voxcpm-parity/new-*.wav` (local
+only, not in git) — the old originals are in the old project's
+`tests/audio/`.
+
+**Field notes from the run** (`reference/deploy-gotchas.md` §20):
+
+- Python `urllib` gets **401** from the RunPod API unless a `User-Agent`
+  header is set (curl sends one by default). The old project hit the same
+  wall — its test script carries an explicit UA.
+- `runsync` can return `IN_PROGRESS` early when the worker is busy; the
+  job still completes server-side. Poll `/status/{id}` or retry once the
+  worker is idle.
+- Check `/health` before firing — firing into a throttled/scale-down
+  window queues jobs behind no worker and runsync times out client-side.
+
 ## Dependency pinning
 
 **The voxcpm install is special** — the Dockerfile runs
