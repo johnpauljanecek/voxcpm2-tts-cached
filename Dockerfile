@@ -11,9 +11,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git ffmpeg libsndfile1 libsndfile1-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Python dependencies (pinned — see requirements.txt)
+# voxcpm is installed with --no-deps: its DECLARED deps (gradio>=6,
+# datasets, modelscope, funasr, ...) are UI/training bloat that hard-conflict
+# with transformers==4.51.3 (huggingface-hub<1.0) and runpod==1.12.0
+# (tomlkit>=0.15.1) and are never imported on the inference path. The real
+# runtime imports are pinned in requirements.txt (see wheel-scan comment).
 COPY requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
+RUN pip install --no-cache-dir --no-deps voxcpm==2.0.3 \
+    && pip install --no-cache-dir -r /app/requirements.txt
 
 # Worker code
 COPY handler.py /app/handler.py

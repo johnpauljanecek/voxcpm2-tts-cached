@@ -1,23 +1,38 @@
-# voxcpm2-tts-cached — pinned dependencies (see README "Dependency pinning")
+# Runtime deps for the voxcpm2-tts-cached worker.
 #
-# Policy:
-#  - Pure-Python / app-level deps are hard-pinned (voxcpm, transformers,
-#    runpod, soundfile) so future releases cannot silently change behavior.
-#  - The torch family is NOT hard-pinned to a +cuNNN wheel: the base image
-#    (runpod/pytorch:2.4.0-cuda12.4.1) ships torch 2.4.0; voxcpm requires
-#    >=2.5.0 so pip upgrades inside the image, and the exact wheel pip picks
-#    is index-time. We set floors only and let the base image's CUDA 12.4
-#    constrain the wheel family.
-#  - transformers==4.51.3 is sacred: voxcpm declares >=4.36.2 with no upper
-#    bound, and newer transformers break LlamaTokenizerFast
-#    (TypeError: Input must be a List[Union[str, AddedToken]]).
+# NOTE: voxcpm itself is NOT installed from this file — the Dockerfile runs
+# `pip install --no-deps voxcpm==2.0.3` first. voxcpm's *declared* deps
+# (gradio>=6, datasets, modelscope, funasr, spaces, argbind, matplotlib,
+# torchcodec) are UI/training bloat that hard-conflict with our pins:
+#   - gradio 6.0-6.17 needs tomlkit<0.15     vs runpod 1.12.0 tomlkit>=0.15.1
+#   - gradio 6.18+  needs huggingface-hub>=1.2 vs transformers 4.51.3 hub<1.0
+# and none of them are imported by the VoxCPM2 inference path. Verified by
+# scanning voxcpm-2.0.3-py3-none-any.whl: the module-level imports actually
+# exercised by `VoxCPM.from_pretrained(<dir>, load_denoiser=False)` are only
+# torch, torchaudio, numpy, einops, pydantic, tqdm, transformers,
+# huggingface_hub, librosa, safetensors — that is the set below.
 
-voxcpm==2.0.3
+# ---- Pure-Python / app-level deps — hard-pinned (behavior-relevant) ----
 transformers==4.51.3
 runpod==1.12.0
 soundfile>=0.12.0
+# transformers 4.51.3 caps huggingface-hub <1.0 (>=0.30). State it explicitly
+# so a future unpin can't silently drag in hub 2.x (voxcpm declares bare
+# `huggingface-hub`).
+huggingface-hub<1.0,>=0.30
 
-# torch family — floors only (see policy above)
+# ---- voxcpm 2.0.3 runtime imports (wheel scan) --------------------------
+safetensors
+einops
+pydantic
+tqdm
+librosa
+
+# ---- torch family — floors only -----------------------------------------
+# The base image (runpod/pytorch:2.4.0-cuda12.4.1) ships torch 2.4.0; pip
+# upgrades to the newest wheel at build time (current PyPI torch ships its
+# own cu13 pip stack — nvidia-*cu13 wheels — which works fine on L4/sm_89).
+# This matches what the old :weights image resolved. Do NOT hard-pin
+# torch==X.Y.Z+cuNNN — the +cu suffix is index-time and brittle.
 torch>=2.5.0
 torchaudio>=2.5.0
-torchcodec

@@ -155,18 +155,35 @@ old project (not in git): `tests/audio/voxcpm-seg-01-commander.wav` etc.
 
 ## Dependency pinning
 
+**The voxcpm install is special** — the Dockerfile runs
+`pip install --no-deps voxcpm==2.0.3` and then installs the pinned set in
+`requirements.txt`. voxcpm's *declared* deps (`gradio>=6`, `datasets`,
+`modelscope`, `funasr`, `spaces`, `argbind`, `matplotlib`, `torchcodec`)
+are UI/training bloat that hard-conflict with the pins below and are never
+imported by the VoxCPM2 inference path:
+
+- `gradio 6.0–6.17` needs `tomlkit<0.15` → fights `runpod==1.12.0`
+  (`tomlkit>=0.15.1`); `gradio 6.18+` needs `huggingface-hub>=1.2` →
+  fights `transformers==4.51.3` (`huggingface-hub<1.0`). Unresolvable.
+
+Verified by scanning `voxcpm-2.0.3-py3-none-any.whl`: the module-level
+imports exercised by `VoxCPM.from_pretrained(<dir>, load_denoiser=False)`
+are only `torch`, `torchaudio`, `numpy`, `einops`, `pydantic`, `tqdm`,
+`transformers`, `huggingface_hub`, `librosa`, `safetensors` — that is the
+requirements.txt set.
+
 - **Hard-pinned** (behavior-relevant pure-Python deps): `voxcpm==2.0.3`,
   `transformers==4.51.3`, `runpod==1.12.0`.
   - `transformers==4.51.3` is **sacred**: voxcpm declares `>=4.36.2` with no
     upper bound, and newer transformers break `LlamaTokenizerFast`
     (`TypeError: Input must be a List[Union[str, AddedToken]]`).
-  - `voxcpm==2.0.3` pinned so a future release can't change
-    `from_pretrained` local-dir behavior.
+  - `huggingface-hub<1.0,>=0.30` stated explicitly (transformers 4.51.3
+    caps it; voxcpm declares bare `huggingface-hub`).
 - **Floors only** for the torch family (`torch>=2.5.0`,
-  `torchaudio>=2.5.0`, `torchcodec`): the base image ships torch 2.4.0 and
-  pip upgrades to the latest cu12.4-compatible wheel at build time. Do NOT
-  hard-pin `torch==X.Y.Z+cuNNN` — the `+cu` suffix is index-time and
-  brittle. The base image's CUDA 12.4 constrains the wheel family.
+  `torchaudio>=2.5.0`): the base image ships torch 2.4.0 and pip upgrades
+  to the newest wheel at build (current PyPI torch ships its own cu13 pip
+  stack, which works on L4/sm_89). Do NOT hard-pin `torch==X.Y.Z+cuNNN`
+  — the `+cu` suffix is index-time and brittle.
 
 ## Handler invariants (carried from the old project)
 
